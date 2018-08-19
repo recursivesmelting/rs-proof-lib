@@ -1,0 +1,8 @@
+(executable
+ ((name test)
+  (libraries (format_validator oUnit hex))))
+
+(alias
+ ((name    runtest)
+  (deps    (test.exe))
+(action (run ${<}))))
