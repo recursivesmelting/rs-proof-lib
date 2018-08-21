@@ -1,6 +1,4 @@
 type opcode =
-	| OP_COINBASE of bytes
-
 	(* Constants *)
 	| OP_0
 	| OP_FALSE
@@ -134,8 +132,5 @@ val opcode_of_hex       : bytes -> opcode * bytes
 
 type t = opcode list * int
 
-val empty				: t
-val length              : t -> int
-val join				: t -> t -> t
 val parse               : bytes -> t
 val of_opcodes			: opcode list -> t

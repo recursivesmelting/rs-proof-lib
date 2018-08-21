@@ -59,126 +59,142 @@ let get_out_formats(tx : t) : Rsscript.Out_format.t list =
 		let get_format (x : Out.t) = x.format in
 		List.map get_format tx.txout;;
 
-let in_signature(rstx : t) = let presignature (txin : In.t) = 
+let in_profile(rstx : t) = let preprofile (txin : In.t) = 
 	match txin.format with 
 		| Rsscript.In_format.Tid _ -> (1, 0, 0)
 		| Rsscript.In_format.Tidquantity _ -> (0, 1, 0)
 		| _ -> (0, 0, 1) and
 		add (x, y, z) (a, b, c) = (x+a, y+b, z+c) in
-			let sigs = List.map presignature rstx.txin in
+			let sigs = List.map preprofile rstx.txin in
 				List.fold_left add (0, 0, 0) sigs;;
 
-let out_signature(rstx : t) = let presignature (txout : Out.t) = 
+let out_profile(rstx : t) = let preprofile (txout : Out.t) = 
 	match txout.format with 
 		| Rsscript.Out_format.Tid _ -> (1, 0, 0, 0)
 		| Rsscript.Out_format.Tidquantity _ -> (0, 1, 0, 0)
 		| Rsscript.Out_format.Topreturn _ -> (0, 0, 1, 0)
 		| Rsscript.Out_format.Other -> (0, 0, 0, 1) and
 		add (x, y, z, u) (a, b, c, d) = (x+a, y+b, z+c, u+d) in
-			let sigs = List.map presignature rstx.txout in
+			let sigs = List.map preprofile rstx.txout in
 				List.fold_left add (0, 0, 0, 0) sigs;;		
 
 let get_format(rstx_opt : t option) : format option = match rstx_opt with
 	| Some rstx ->
-		let dect_format = match in_signature rstx, out_signature rstx with
-			| (0, 0, _), (0, 0, 1, 1) -> Genesis
+		let dect_format = 
+		match in_profile rstx, out_profile rstx with
+			| (0, 0, _), (0, 0, 1, 1) -> let _ = Printf.printf "Genesis with \n" in Genesis
 			| (0, 0, 1), (a, b, 1, _) 
-				when (a = 0 || a = 1) && b >= 1 -> Fminting
+				 when a >= 1 && b >= 1 -> let _ = Printf.printf "Fminting with \n" in Fminting 
 			| (1, 0, _), (a, b, 1, _) 
-				when (a = 0 || a = 1) && b >= 1 -> Minting
+				when (a = 0 || a = 1) && b >= 1 -> let _ = Printf.printf "Minting with \n" in Minting
 			| (0, y, _), (0, _, 1, _) 
-				when y >= 1 -> Ownership
-			| _ -> Other in
-				Some dect_format
+				when y >= 1 -> let _ = Printf.printf "Ownership with \n" in Ownership
+			| _, _ -> let _ = Printf.printf "Other with \n" in Other in
+				(* Verbose printing here *)
+				let _ = match (in_profile rstx) with
+				| (a, b, c) -> Printf.printf "Input Profile: %i %i %i \n" a b c 
+				and _ = match (out_profile rstx) with
+				| (a, b, c, d) -> Printf.printf "Output Profile: %i %i %i %i \n" a b c d in
+					Some  dect_format
 	| None -> None;;
 
-let check_fminting(rstx : t) : bool =
-	let pred_in (x : In.t) : bool = match x.format with 
+let validate_fminting(rstx : t) : bool =
+	let pred_msig (x : In.t) : bool = match x.format with 
 		| Rsscript.In_format.Other -> true
 		| _ -> false
 		and 
-		pred_out (x : Out.t) : bool = match x.format with
+		pred_mpk (x : Out.t) : bool = match x.format with
 		| Rsscript.Out_format.Tid _ -> true
+		| _ -> false
+		and pred_assert (x: Out.t) : bool = match x.format with
+		| Rsscript.Out_format.Tidquantity _ -> true
 		| _ -> false in
-			let rsscript_in_hash = (List.find pred_in rstx.txin).out_hash
-			and rsscript_out_form = (List.find pred_out rstx.txout).format in
-				(Some rsscript_in_hash) = (Rsscript.Out_format.get_id rsscript_out_form);;
+			let mint_sig_outhash_eq (x : Out.t) = 
+				let mint_sig_outhash = (List.find pred_msig rstx.txin).out_hash
+				and xhash_opt = Rsscript.Out_format.get_id x.format in
+					(Some mint_sig_outhash = xhash_opt)
+			and mint_pk = (List.find pred_mpk rstx.txout) in
+				(mint_sig_outhash_eq mint_pk) && 					
+					List.for_all mint_sig_outhash_eq (List.filter pred_assert rstx.txout);;
 
-let check_minting(rstx : t) : bool =
-	let pred_in (x : In.t) : bool = match x.format with 
+let validate_minting(rstx : t) : bool =
+	let pred_msig_form (x : In.t) : bool = match x.format with 
 		| Rsscript.In_format.Tid _ -> true
 		| _ -> false
 		and 
-		pred_out (x : Out.t) : bool = match x.format with
+		pred_mpk_form (x : Out.t) : bool = match x.format with
 		| Rsscript.Out_format.Tid _ -> true
+		| _ -> false
+		and pred_assert_form (x: Out.t) : bool = match x.format with
+		| Rsscript.Out_format.Tidquantity _ -> true
 		| _ -> false in
-			let rsscript_in_form = (List.find pred_in rstx.txin).format
-			and rsscript_out_form = (List.find pred_out rstx.txout).format in
-				(Rsscript.is_equal_id rsscript_in_form rsscript_out_form);;
-			
-let check_ownership(rstx : t) : bool =
-	let sum_in = 
-		let add (s1 : Rsscript.In_format.t) (s2 : Rsscript.In_format.t) = match s1, s2 with
-			| Rsscript.In_format.Tidquantity {iq_token_id = tid1; token_quantity = x;},
-			Rsscript.In_format.Tidquantity {iq_token_id = tid2; token_quantity = y;}
-			when tid1 = tid2
-				-> Rsscript.In_format.Tidquantity {iq_token_id = tid2; token_quantity = Uint8.(x + y);}
-			| _ -> s2
-			in
-				let rec sum_fold (unique : Rsscript.In_format.t list) (dups : Rsscript.In_format.t list) = match dups with
-				| [] -> unique
-				| x :: xs -> 					
-						if (List.exists (Rsscript.is_equal_id_in x) unique) then
-							sum_fold (List.map (add x) unique) dups
-						else
-							if (match x with | Rsscript.In_format.Tidquantity _ -> true | _ -> false) then
-								sum_fold (x::unique) xs
-							else
-								sum_fold (unique) xs in
-									sum_fold [] (get_in_formats rstx)
-		and sum_out = 
-			let add (s1 : Rsscript.Out_format.t) (s2 : Rsscript.Out_format.t) = match s1, s2 with
-				| Rsscript.Out_format.Tidquantity {iq_token_id = tid1; token_quantity = x;},
-				Rsscript.Out_format.Tidquantity {iq_token_id = tid2; token_quantity = y;}
-				when tid1 = tid2
-					-> Rsscript.Out_format.Tidquantity {iq_token_id = tid2; token_quantity = Uint8.(x + y);}
-				| _ -> s2
-				in
-					let rec sum_fold (unique : Rsscript.Out_format.t list) (dups : Rsscript.Out_format.t list) = match dups with
-					| [] -> unique
-					| x :: xs ->
-							if (List.exists (Rsscript.is_equal_id_out x) unique) then
-								sum_fold (List.map (add x) unique) dups
-							else
-								if (match x with | Rsscript.Out_format.Tidquantity _ -> true | _ -> false) then
-									sum_fold (x::unique) xs
-								else
-									sum_fold unique xs in
-										sum_fold [] (get_out_formats rstx)
-			in let rec check output = match output with
-				| x :: xs -> 
-					if List.exists (fun y -> (Rsscript.is_equal y x)) sum_in then
-						check xs
-					else
-						false
-				| [] -> true in
-					(check sum_out);;
+			let mint_sig_form = (List.find pred_msig_form rstx.txin).format
+			and mint_pk_form = (List.find pred_mpk_form rstx.txout).format in
+				(Rsscript.is_equal_id mint_sig_form mint_pk_form) && 					
+					List.for_all (function (x: Out.t) -> Rsscript.is_equal_id mint_sig_form x.format) (List.filter pred_assert_form rstx.txout);;
 
-let check_format(rstx_opt : t option) : bool =
+let validate_ownership(rstx : t) : bool = 
+		let pred_revoke (x : Rsscript.In_format.t) : bool = match x with
+		| Rsscript.In_format.Tidquantity _ -> true
+		| _ -> false 
+		and pred_assert (x : Rsscript.Out_format.t) : bool = match x with
+		| Rsscript.Out_format.Tidquantity _ -> true
+		| _ -> false in
+			let revoke_forms =  (List.find_all pred_revoke  (get_in_formats rstx))
+			and assert_forms =  (List.find_all pred_assert (get_out_formats rstx)) in
+				let sorted_rforms = 
+					let compare_in (rform_a : Rsscript.In_format.t) (rform_b  : Rsscript.In_format.t) = 
+						match (Rsscript.In_format.get_id rform_a), (Rsscript.In_format.get_id rform_b) with
+						| Some x, Some y -> String.compare x y
+						| _ -> 0 in
+							List.sort compare_in revoke_forms
+				and sorted_aforms = 
+					let compare_out (rform_a : Rsscript.Out_format.t) (rform_b  : Rsscript.Out_format.t) = 
+						match (Rsscript.Out_format.get_id rform_a), (Rsscript.Out_format.get_id rform_b) with
+						| Some x, Some y -> String.compare x y
+						| _ -> 0 in
+							List.sort compare_out assert_forms in
+					let tally_in (current : (Hash.t*uint8) list) (new_rsform : Rsscript.In_format.t) =
+						match Rsscript.In_format.get_id new_rsform, Rsscript.In_format.get_quantity new_rsform with
+							| Some new_id, Some new_quantity ->
+							(match current with
+								| [] -> [(new_id, new_quantity)]
+								| (current_id, current_tally) :: rest -> 
+
+								let () = Printf.printf "Current In: %s %i \n" current_id (Uint8.to_int current_tally) in
+
+									if current_id = new_id then
+										(current_id, (Uint8.add current_tally new_quantity)) :: rest
+									else
+										(current_id, current_tally) :: rest)
+							| _ -> [("", Uint8.zero)]
+					and tally_out (current : (Hash.t*uint8) list) (new_asform : Rsscript.Out_format.t) =
+						match Rsscript.Out_format.get_id new_asform, Rsscript.Out_format.get_quantity new_asform with
+							| Some new_id, Some new_quantity ->
+							(match current with
+								| [] -> [(new_id, new_quantity)]
+								| (current_id, current_tally) :: rest -> 
+
+								let () = Printf.printf "Current Out: %s %i \n" current_id (Uint8.to_int current_tally) in
+
+									if current_id = new_id then
+										(current_id, Uint8.add current_tally new_quantity) :: rest
+									else
+										(current_id, current_tally) :: rest)
+							| _ -> [("", Uint8.zero)] in 
+						let profile_in = List.fold_left tally_in [] sorted_rforms
+						and profile_out = List.fold_left tally_out [] sorted_aforms in
+							(profile_in = profile_out)
+
+let validate_format(rstx_opt : t option) : bool =
 	let format = get_format(rstx_opt) in
 		match rstx_opt with 
-			| Some rstx -> let valid =
-				match format with
+			| Some rstx -> 
+				(match format with
 					| Some Genesis -> true
-					| Some Fminting -> check_fminting(rstx)
-					| Some Minting -> check_minting(rstx)
-					| Some Ownership -> check_ownership(rstx)
+					| Some Fminting -> validate_fminting(rstx)
+					| Some Minting -> validate_minting(rstx)
+					| Some Ownership -> validate_ownership(rstx)
 					| Some Other -> false
-					| None -> false in 
-					valid
+					| None -> false) 
 			| None -> false;;
-
-let parse data = from_tx (Tx.parse data);;
- 
-
-(* let%test _ = (parse (Bytes.of_string "01000000018689302ea03ef5dd56fb7940a867f9240fa811eddeb0fa4c87ad9ff3728f5e11000000006b483045022100bc4295d369443e2cc4e20b50a6fd8e7e16c08aabdbb42bdf167dec9d41afc3d402207a8e0ccb91438785e51203e7d2f85c4698ff81245936ebb71935e3d052876dcd4121029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59fffffffff01983a0000000000001976a914ad618cf4333b3b248f9744e8e81db2964d0ae39788ac00000000") = None);; *)

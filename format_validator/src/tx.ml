@@ -13,7 +13,7 @@ module In = struct
 	let parse bdata =
 		match%bitstring bdata with
 		| {|
-			out_hash	: 32*8: string;
+			out_hash	: 32*8 : string;
 			out_n		: 32 : littleendian;
 			rest		: -1 : bitstring
 		|} ->

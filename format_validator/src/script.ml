@@ -1,5 +1,4 @@
 type opcode =
-| OP_COINBASE of bytes
 (* Constants *)
 | OP_0
 | OP_FALSE
@@ -130,8 +129,6 @@ type opcode =
 | OP_NOP of int;;
 
 type t = opcode list * int;;
-
-let empty = ([], 0);;
 
 let opcode_of_hex s =
     let consume_next s =
@@ -299,30 +296,13 @@ let opcode_of_hex s =
     | _, 0x89 -> (OP_RESERVED1, s')
 
     | _, x when x = 0x61 || (x >= 0xb0 && x <= 0xb9) -> (OP_NOP (x), s')
-    | _, x -> (OP_NOP (x), s')
+    | _, x -> (OP_NOP (x), s');;
 
-;;
-
-let join s1 s2 = ((fst s1) @ (fst s2), (snd s1) + (snd s2));;
-
-let length scr = snd scr;;
-
-let parse s =
-    let rec chunkize s acc = match Bytes.length s with
-    | 0 -> acc
-    | n when n <= 8192 -> acc @ [ OP_COINBASE (s) ]
-    | n ->
-        let chunk = Bytes.sub s 0 8192 in
-        chunkize (Bytes.sub s 8192 @@ n - 8192) (acc @ [ OP_COINBASE (chunk)])
-    in
-    let rec parse' s acc = match Bytes.length s with
-    | 0 -> acc
-    | _ -> 
-        let op, s' = opcode_of_hex s in 
-        parse' s' @@ acc @ [op]
-    in 
-    if String.length s > 50000 then (chunkize s [], String.length s)
-    else (parse' s [], String.length s)
-;;
+let parse s = let rec parse' s acc = match Bytes.length s with
+                    | 0 -> acc
+                    | _ -> 
+                        let op, s' = opcode_of_hex s in 
+                            parse' s' @@ acc @ [op] in 
+                                    (parse' s [], String.length s);;
 
 let of_opcodes ops = (ops, List.length ops);;

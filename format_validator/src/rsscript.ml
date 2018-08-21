@@ -1,4 +1,4 @@
-open Stdint
+open Stdint;;
 
 let rec firstk k xs = match xs with
 | [] -> xs
@@ -26,18 +26,29 @@ module In_format = struct
     
     let parse (oplist : Script.opcode list) = let segment = last oplist in
         match segment with 
-        | Script.OP_DATA (32, x) -> 
-            Tid {
-                i_token_id = Bytes.to_string x;
-            }
-        | Script.OP_DATA (40, x) -> 
-            let id = String.sub (Bytes.to_string x) 0 32 in
-                let quantity = Uint8.of_bytes_little_endian (Bytes.sub x 32 8) 0 in
-            Tidquantity {
-                iq_token_id = id;
-                token_quantity = quantity;
-            }
+        | Script.OP_DATA (0x20, x) -> let y = Hash.of_bin_norev x in
+                Tid {
+                    i_token_id = (Bytes.sub y 0 64);
+                }
+        | Script.OP_DATA (0x28, x) -> let y = Hash.of_bin_norev x in
+                    Tidquantity {
+                        iq_token_id = (Bytes.sub y 0 64);
+                        token_quantity = (Uint8.of_string (Bytes.cat "0x" (String.sub y 64 16)));
+                    }
         | _ -> Other ;;
+            
+
+            (* let id = (Bytes.sub x 0 32)
+            and quantity = (Bytes.sub x 32 8) in
+            Tidquantity {
+                iq_token_id = Hash.of_bin_norev id;
+                token_quantity = let () = (Printf.printf "%i %i \n"
+                     (Uint8.to_int (Uint8.of_bytes_little_endian (Hash.of_bin_norev quantity) 1 ))
+                    (Uint8.to_int (Uint8.of_bytes_little_endian quantity 0))) in
+                    Uint8.of_bytes_little_endian quantity 0;
+
+            }
+        | _ -> Other ;; *)
 end
 
 module Out_format = struct
@@ -58,28 +69,28 @@ module Out_format = struct
 
     let parse (oplist : Script.opcode list) : t = let segment = firstk 2 oplist in
         match segment with 
-        | [Script.OP_DATA (32, x); OP_EQUALVERIFY;] -> 
-            Tid {
-                i_token_id = Bytes.to_string x;
-            }
-        | [Script.OP_DATA (40, x); OP_EQUALVERIFY;] -> 
-            let id = Bytes.to_string (Bytes.sub x 0 32) in
-                let quantity = Uint8.of_bytes_little_endian (String.sub x 32 8) 0 in
-            Tidquantity {
-                iq_token_id = id;
-                token_quantity = quantity;
-            }
-        | [Script.OP_RETURN x] -> Topreturn x
+        | [Script.OP_DATA (0x20, x); OP_EQUALVERIFY;] -> let y = Hash.of_bin_norev x in
+                Tid {
+                    i_token_id = (Bytes.sub y 0 64);
+                }
+        | [Script.OP_DATA (0x28, x); OP_EQUALVERIFY;] -> let y = Hash.of_bin_norev x in
+                    Tidquantity {
+                        iq_token_id = (Bytes.sub y 0 64);
+                        token_quantity = (Uint8.of_string (Bytes.cat "0x" (String.sub y 64 16)));
+                    }
+        | [Script.OP_RETURN x] -> Topreturn (Hash.of_bin_norev x)
         | _ -> Other ;;
 end
 
-let is_equal_id(x : In_format.t) (y : Out_format.t) = 
-    if In_format.get_id x = None || Out_format.get_id y = None then
+let is_equal_id(x : In_format.t) (y : Out_format.t) =
+    let () = Printf.printf "In ID: %s \n Out ID: %s \n" 
+        (match In_format.get_id x with | Some a -> a | None -> "" ) (match Out_format.get_id y with | Some a -> a | None -> "" )  in
+    (if In_format.get_id x = None || Out_format.get_id y = None then
         false
     else if In_format.get_id x = Out_format.get_id y then
         true
     else
-        false;;
+        false);;
 
 let is_equal_id_in(x : In_format.t) (y : In_format.t) = 
     if In_format.get_id x = None || In_format.get_id y = None then
