@@ -34,14 +34,17 @@ let rs_script_out_parse_test sc scdec _ =
 				assert_equal (get_type y) (scdec);;
 
 let tx_format_parse_test raw form_dec _ =
-	let format = Rstx.get_format (Rstx.from_tx (Tx.parse (Hex.to_string raw))) in
-	match format with
-	| None -> assert_equal true false
-	| Some _ -> 
-		assert_equal (format) (form_dec);;
+	let tx_opt = Tx.parse (Hex.to_string raw) in
+	match tx_opt with
+		| None -> assert_equal true false
+		| Some tx -> let format = Rstx.get_format (Rstx.from_tx tx) in
+			assert_equal (format) (form_dec);;
 
 let tx_validate_format_parse_test raw validate_dec _ =
-	let check = Rstx.validate_format (Rstx.from_tx (Tx.parse (Hex.to_string raw))) in
+	let tx_opt = Tx.parse (Hex.to_string raw) in
+	match tx_opt with
+		| None -> assert_equal true false
+		| Some tx -> let check = Rstx.validate_format (Rstx.from_tx (tx)) in
 		assert_equal (check) (validate_dec);;
 
 let suite = 
@@ -56,19 +59,19 @@ let suite =
 		("IdentityQuantity");
 	"Parse Genesis TX"					>:: tx_format_parse_test
 		(`Hex "01000000018689302ea03ef5dd56fb7940a867f9240fa811eddeb0fa4c87ad9ff3728f5e11000000006a47304402200ecd817422fa4a9d77d9e44357e0b6548547dc88fef223881e0f07c74223e85a022007146a314cabbad0874b7d1e88393a920a3aa8171eacfccee91ebf84c9c18ea94121029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59fffffffff0205000000000000001976a914ad618cf4333b3b248f9744e8e81db2964d0ae39788ac0000000000000000076a0550726f6f6600000000")
-		(Some Rstx.Genesis); 
+		(Rstx.Genesis); 
 	"Parse Ownership TX"				>:: tx_format_parse_test
 		(`Hex "01000000018689302ea03ef5dd56fb7940a867f9240fa811eddeb0fa4c87ad9ff3728f5e11000000002928115e8f72f39fad874cfab0deed11a80f24f967a84079fb56ddf53ea02e3089860000000000000000ffffffff0205000000000000002a28115e8f72f39fad874cfab0deed11a80f24f967a84079fb56ddf53ea02e3089860000000000000000880000000000000000076a0550726f6f6600000000")
-		(Some Ownership);
+		(Ownership);
 	"Parse FMinting TX"				>:: tx_format_parse_test
 		(`Hex "01000000018689302ea03ef5dd56fb7940a867f9240fa811eddeb0fa4c87ad9ff3728f5e11000000006b4830450221009003f7f7db16bfc12d461068f6a595605d626c97467171422112b24e9665230402203b247feea2caed48051e6a076d6f1bd97cb89f9e51c4514f6557de41525e0b974121029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59fffffffff0305000000000000002220115e8f72f39fad874cfab0deed11a80f24f967a84079fb56ddf53ea02e3089868805000000000000002a28115e8f72f39fad874cfab0deed11a80f24f967a84079fb56ddf53ea02e3089860000000000000000880000000000000000076a0550726f6f6600000000")
-		(Some Rstx.Fminting);	
+		(Rstx.Fminting);	
 	"Parse Minting TX"				>:: tx_format_parse_test
 		(`Hex "01000000018689302ea03ef5dd56fb7940a867f9240fa811eddeb0fa4c87ad9ff3728f5e11000000002120115e8f72f39fad874cfab0deed11a80f24f967a84079fb56ddf53ea02e308986ffffffff0305000000000000002220115e8f72f39fad874cfab0deed11a80f24f967a84079fb56ddf53ea02e3089868805000000000000002a28115e8f72f39fad874cfab0deed11a80f24f967a84079fb56ddf53ea02e3089860000000000000000880000000000000000076a0550726f6f6600000000")
-		(Some Rstx.Minting);
+		(Rstx.Minting);
 	"Parse Non-RS TX"					>:: tx_format_parse_test
 		(`Hex "01000000018689302ea03ef5dd56fb7940a867f9240fa811eddeb0fa4c87ad9ff3728f5e11000000006b483045022100bc4295d369443e2cc4e20b50a6fd8e7e16c08aabdbb42bdf167dec9d41afc3d402207a8e0ccb91438785e51203e7d2f85c4698ff81245936ebb71935e3d052876dcd4121029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59fffffffff01983a0000000000001976a914ad618cf4333b3b248f9744e8e81db2964d0ae39788ac00000000")
-		(Some Rstx.Other);
+		(Rstx.Other);
 	"Check Genesis TX"					>:: tx_validate_format_parse_test
 		(`Hex "01000000018689302ea03ef5dd56fb7940a867f9240fa811eddeb0fa4c87ad9ff3728f5e11000000006a47304402200ecd817422fa4a9d77d9e44357e0b6548547dc88fef223881e0f07c74223e85a022007146a314cabbad0874b7d1e88393a920a3aa8171eacfccee91ebf84c9c18ea94121029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59fffffffff0205000000000000001976a914ad618cf4333b3b248f9744e8e81db2964d0ae39788ac0000000000000000076a0550726f6f6600000000")
 		(true); 

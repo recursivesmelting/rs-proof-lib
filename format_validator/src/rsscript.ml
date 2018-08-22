@@ -9,7 +9,6 @@ let rec last = function
     | [x] -> x
     | _ :: y -> last y;;
 
-
 module In_format = struct
     type t = | Tid of {i_token_id : Hash.t;}
              | Tidquantity of {iq_token_id : Hash.t; token_quantity : uint8;}
@@ -36,19 +35,6 @@ module In_format = struct
                         token_quantity = (Uint8.of_string (Bytes.cat "0x" (String.sub y 64 16)));
                     }
         | _ -> Other ;;
-            
-
-            (* let id = (Bytes.sub x 0 32)
-            and quantity = (Bytes.sub x 32 8) in
-            Tidquantity {
-                iq_token_id = Hash.of_bin_norev id;
-                token_quantity = let () = (Printf.printf "%i %i \n"
-                     (Uint8.to_int (Uint8.of_bytes_little_endian (Hash.of_bin_norev quantity) 1 ))
-                    (Uint8.to_int (Uint8.of_bytes_little_endian quantity 0))) in
-                    Uint8.of_bytes_little_endian quantity 0;
-
-            }
-        | _ -> Other ;; *)
 end
 
 module Out_format = struct

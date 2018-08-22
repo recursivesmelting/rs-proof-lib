@@ -6,7 +6,5 @@
   (inline_tests)
   (libraries (bitstring 
               stdint 
-              cryptokit 
-              bignum))
+              cryptokit))
   (preprocess (pps (ppx_inline_test ppx_bitstring -no-check ppx_driver.runner)))))
-

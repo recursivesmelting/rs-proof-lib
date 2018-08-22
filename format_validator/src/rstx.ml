@@ -40,16 +40,19 @@ type t = {
 
 type format = Genesis | Ownership | Fminting | Minting | Other;;
 
-let from_tx (tx_opt : Tx.t option) = match tx_opt with 
-	| Some tx ->
-		let rstxin = List.map In.from_in tx.txin in
-		let	rstout = List.map Out.from_out tx.txout in
-			Some {
-				hash = tx.hash;
-				txin = rstxin;
-				txout= rstout;
-			}
-	| None -> None;;
+let from_tx (tx : Tx.t) = 
+		let rstxin = List.map In.from_in tx.txin
+		and	rstout = List.map Out.from_out tx.txout in
+					{
+						hash = tx.hash;
+						txin = rstxin;
+						txout = rstout;
+			};;
+
+let parse bdata = let tx_opt = Tx.parse bdata in
+	match tx_opt with
+		| None -> None
+		| Some tx -> Some (from_tx tx);; 
 
 let get_in_formats (tx : t) : Rsscript.In_format.t list =
 	let get_format (x : In.t) = x.format in
@@ -58,6 +61,22 @@ let get_in_formats (tx : t) : Rsscript.In_format.t list =
 let get_out_formats(tx : t) : Rsscript.Out_format.t list =
 		let get_format (x : Out.t) = x.format in
 		List.map get_format tx.txout;;
+
+(* let get_in_ids(tx : t) : (Hash.t list) =
+	let get_out_hash (x : In.t) = x.out_hash *)
+
+let get_merkleroot_in (tx : t) : Hash.t = 
+	let txids_in : (Hash.t list) = (List.map (function (x : In.t) -> x.out_hash) tx.txin)
+	and merklize (s : string) (s_new : string) =
+		Hash.dsha256 (s ^ s_new) in
+		List.fold_left merklize "0" txids_in;;
+
+let get_proof (rstx : t) = let rec iter (b : bytes) (ol : Rsscript.Out_format.t list) =
+	match b, ol with
+		| b, [] -> b
+		| b, (Rsscript.Out_format.Topreturn b_new) :: xs -> iter(b_new ^ b) (xs)
+		| b, _ :: xs -> iter b xs in
+			iter "" (get_out_formats rstx);;
 
 let in_profile(rstx : t) = let preprofile (txin : In.t) = 
 	match txin.format with 
@@ -78,8 +97,7 @@ let out_profile(rstx : t) = let preprofile (txout : Out.t) =
 			let sigs = List.map preprofile rstx.txout in
 				List.fold_left add (0, 0, 0, 0) sigs;;		
 
-let get_format(rstx_opt : t option) : format option = match rstx_opt with
-	| Some rstx ->
+let get_format(rstx : t) : format =
 		let dect_format = 
 		match in_profile rstx, out_profile rstx with
 			| (0, 0, _), (0, 0, 1, 1) -> let _ = Printf.printf "Genesis with \n" in Genesis
@@ -95,8 +113,7 @@ let get_format(rstx_opt : t option) : format option = match rstx_opt with
 				| (a, b, c) -> Printf.printf "Input Profile: %i %i %i \n" a b c 
 				and _ = match (out_profile rstx) with
 				| (a, b, c, d) -> Printf.printf "Output Profile: %i %i %i %i \n" a b c d in
-					Some  dect_format
-	| None -> None;;
+					dect_format;;
 
 let validate_fminting(rstx : t) : bool =
 	let pred_msig (x : In.t) : bool = match x.format with 
@@ -160,9 +177,6 @@ let validate_ownership(rstx : t) : bool =
 							(match current with
 								| [] -> [(new_id, new_quantity)]
 								| (current_id, current_tally) :: rest -> 
-
-								let () = Printf.printf "Current In: %s %i \n" current_id (Uint8.to_int current_tally) in
-
 									if current_id = new_id then
 										(current_id, (Uint8.add current_tally new_quantity)) :: rest
 									else
@@ -174,9 +188,6 @@ let validate_ownership(rstx : t) : bool =
 							(match current with
 								| [] -> [(new_id, new_quantity)]
 								| (current_id, current_tally) :: rest -> 
-
-								let () = Printf.printf "Current Out: %s %i \n" current_id (Uint8.to_int current_tally) in
-
 									if current_id = new_id then
 										(current_id, Uint8.add current_tally new_quantity) :: rest
 									else
@@ -184,17 +195,31 @@ let validate_ownership(rstx : t) : bool =
 							| _ -> [("", Uint8.zero)] in 
 						let profile_in = List.fold_left tally_in [] sorted_rforms
 						and profile_out = List.fold_left tally_out [] sorted_aforms in
+
+							let _ = List.iter (function (id, quant) ->
+								Printf.printf "Current In: %s %i \n" id (Uint8.to_int quant)) profile_in in
+							
 							(profile_in = profile_out)
 
-let validate_format(rstx_opt : t option) : bool =
-	let format = get_format(rstx_opt) in
-		match rstx_opt with 
-			| Some rstx -> 
-				(match format with
-					| Some Genesis -> true
-					| Some Fminting -> validate_fminting(rstx)
-					| Some Minting -> validate_minting(rstx)
-					| Some Ownership -> validate_ownership(rstx)
-					| Some Other -> false
-					| None -> false) 
-			| None -> false;;
+let validate_format (rstx : t) : bool =
+	match get_format(rstx) with
+		| Genesis -> true
+		| Fminting -> validate_fminting(rstx)
+		| Minting -> validate_minting(rstx)
+		| Ownership -> validate_ownership(rstx)
+		| Other -> false;;
+
+let check_inclusion (path : Hash.t list) (merkleroots : Hash.t list) = 
+	let getmerkleroot hashl =
+	let rec mround hs = match hs with
+	| x' :: [] -> [Hash.dsha256 (x' ^ x')]
+	| x' :: x'' :: hs' -> Hash.dsha256 (x' ^ x'') :: mround hs'
+	| [] -> []
+	in
+	let rec m hs = match List.length hs with
+		| 0 -> Hash.of_bin @@ Hash.dsha256 (Hash.to_bin Hash.zero)
+		| 1 -> Hash.of_bin (List.hd hs)
+		| _ -> m @@ mround hs
+	in 
+	List.map (fun h -> Hash.to_bin h) hashl |> m in
+		(List.mem (getmerkleroot path) merkleroots);;
