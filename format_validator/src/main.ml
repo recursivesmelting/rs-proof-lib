@@ -1,5 +1,9 @@
 (* Placeholder for the proof verification function *)
-let verify (* (proof : bytes) (in_ids_hash : Hash.t) (merkle_roots : Hash.t list) (token_id : Hash.t) *) : bool = true;;
+let verify (proof : bytes) (in_ids_hash : Hash.t) (merkle_roots : Hash.t list) (token_id : Hash.t) : bool = 
+    (proof = proof)
+    && (in_ids_hash = in_ids_hash)
+    && (merkle_roots = merkle_roots)
+    && (token_id = token_id);;
 
 (* Placeholder for the proving function *)
 let prove (* (private_inputs : (bytes*(Hash.t list)) list) (in_ids_hash : Hash.t) (merkle_roots : Hash.t list) *) : bytes = "";;
@@ -16,7 +20,7 @@ let statement (private_inputs : (bytes*(Hash.t list)) list) (in_ids_hash : Hash.
                         (flag_form
                          && Rstx.check_inclusion path merkle_roots (* Check inclusion in some merkle_root *)
                          && Rstx.validate_format(rstx) (* Check format *)
-                         && (verify (Rstx.get_proof rstx) (Rstx.get_merkleroot_in rstx) merkle_roots,
+                         && ((verify (Rstx.get_proof rstx) (Rstx.get_merkleroot_in rstx) merkle_roots rstx.hash),
                          nextin_ids_hash = in_ids_hash,
                          nextin_ids_hash) || rstx.hash = token_id) (* Verify proof or is genesis*) in
         match (List.fold_left validationfold (true, false, "0") private_inputs) with
