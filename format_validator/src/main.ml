@@ -20,9 +20,9 @@ let statement (private_inputs : (bytes*(Hash.t list)) list) (in_ids_hash : Hash.
                         (flag_form
                          && Rstx.check_inclusion path merkle_roots (* Check inclusion in some merkle_root *)
                          && Rstx.validate_format(rstx) (* Check format *)
-                         && ((verify (Rstx.get_proof rstx) (Rstx.get_merkleroot_in rstx) merkle_roots rstx.hash),
+                         && ((verify (Rstx.get_proof rstx) (Rstx.get_merkleroot_in rstx) merkle_roots rstx.hash) || rstx.hash = token_id),
                          nextin_ids_hash = in_ids_hash,
-                         nextin_ids_hash) || rstx.hash = token_id) (* Verify proof or is genesis*) in
+                         nextin_ids_hash) (* Verify proof or is genesis*) in
         match (List.fold_left validationfold (true, false, "0") private_inputs) with
             | true, true, _ -> true
             | _ -> false;;
@@ -32,5 +32,5 @@ let validate_tx (raw_tx : bytes) (merkle_roots : Hash.t list)=
     match Rstx.parse(raw_tx) with 
         | None -> false
         | Some rstx -> 
-            (verify (Rstx.get_proof rstx) (Rstx.get_merkleroot_in rstx) merkle_roots (* Verify proof*)
+            (verify (Rstx.get_proof rstx) (Rstx.get_merkleroot_in rstx) merkle_roots rstx.hash (* Verify proof*)
             && Rstx.validate_format(rstx) (* Validate transaction *));;
