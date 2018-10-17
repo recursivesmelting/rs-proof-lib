@@ -3,7 +3,7 @@ A wallet interface allowing for proof generation and verification required for t
 ## Installation
 1. Install [xjsnark](https://github.com/akosba/xjsnark).
 2. Copy & Paste rsValidate.mps into ./xjsnark/languages/xjsnark/sandbox/models/xjsnark folder (while the project is closed).
-## Running and Generating circuit
+## Running and generating circuits
 1. Open MPS and the xjsnark project.
 2. In the logical view navigate to xjsnark.sandbox -> xjsnark -> Tests.
 3. Right click on the one of the various test classes, for example ConvertTest, and then select Run 'Class ConvertTest'.
